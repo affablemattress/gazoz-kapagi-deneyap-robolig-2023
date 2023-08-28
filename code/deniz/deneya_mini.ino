@@ -1,29 +1,39 @@
 #include <esp_now.h>
 #include <WiFi.h>
 
-int8_t i[] = { D0, D1, D2, D3, D4, D5, D6, D7, D8, D9, D10, D11, D12, D13, D14, D15 };
-int8_t j[] = { A0, A1, A2, A3, A4, A5 };
-int8_t state = 0;
-int8_t grab_drop = 0;
+
+uint8_t analog_digital_state = 0;
+int8_t speed = 0;
+int8_t right_left_state = 0;
 
 //ESP NOW
-uint8_t broadcastAddress[]={0x24, 0x6F, 0x28, 0x7A, 0xAE, 0x7C};
+uint8_t broadcastAddress[] = { 0x3C, 0xE9, 0x0E, 0x86, 0x0C, 0x84 };
 esp_now_peer_info_t peerInfo;
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 
 typedef struct dataPack {
-  uint16_t X_axis;
-  uint16_t Y_axis;
-  uint8_t General_state = 0;    // read lines 1 robotic arm 2 color 3 etc
-  uint8_t Grab_Drop_state = 0;  // 0 drop 1 grab
+  uint16_t X_axis = 0;      // dummy number for test
+  uint16_t Y_axis = 0;      //dummy number for test
+  uint8_t an_dig_state = 0;  // button 0 - joystick 1
+  int8_t f_b_speed = 0;     //speed -100 100
+  int8_t horizontal = 0;    //-1 right 0 forward 1 left
 
 } dataPack;
 
 dataPack instance;
 
+//Interrupt Functions
+
+void speed_inc();
+void speed_dec();
+void turn_right();
+void turn_left();
+void analog_digital();
+
 void setup() {
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);  //ESP NOW
+
   if (esp_now_init() != ESP_OK) {
     Serial.println("Error initializing ESP-NOW");
     return;
@@ -35,28 +45,31 @@ void setup() {
   peerInfo.channel = 0;
   peerInfo.encrypt = false;
 
-  if (esp_now_add_peer(&peerInfo) != ESP_OK){
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
     Serial.println("Failed to add peer");
     return;
   }
 
-  attachInterrupt(D5, state_inc, FALLING);      // Random pin
-  attachInterrupt(D6, grab_drop_inc, FALLING);  // Random pin
 
-  pinMode(D7, OUTPUT);                          //General state 0 led
-  pinMode(D8, OUTPUT);                          //General state 1 led
-  pinMode(D9, OUTPUT);                          //General state 2 led
-  pinMode(D10, OUTPUT);                         //grab_drop state 0 led
-  pinMode(D11, OUTPUT);                         //grab_drop state 1 led
+  pinMode(23, INPUT_PULLUP);
+  pinMode(22, INPUT_PULLUP);
+  pinMode(1, INPUT_PULLUP);
+  pinMode(3, INPUT_PULLUP);
+  pinMode(21, INPUT_PULLUP);
 
-  digitalWrite(D7, LOW);
-  digitalWrite(D8, LOW);
-  digitalWrite(D9, LOW);
-  digitalWrite(D10, LOW);
-  digitalWrite(D11, LOW);
+  attachInterrupt(23,speed_inc, FALLING);
+  attachInterrupt(22,speed_dec , FALLING);
+  attachInterrupt(1,turn_right , FALLING);
+  attachInterrupt(3,turn_left , FALLING);
+  attachInterrupt(21,analog_digital , FALLING);
 }
 
 void loop() {
+  if(analog_digital_state==1){
+    instance.X_axis= analogRead(34);
+    instance.X_axis= analogRead(35);
+  }
+  /*
   instance.X_axis = analogRead(A0);
   instance.Y_axis = analogRead(A1);
   if (state == 0) {
@@ -76,26 +89,55 @@ void loop() {
     digitalWrite(D9, HIGH);
     digitalWrite(D8, LOW);
   }
-  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
-   
+  */
+  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&instance, sizeof(instance));
+
   if (result == ESP_OK) {
     Serial.println("Sending confirmed");
-  }
-  else {
+  } else {
     Serial.println("Sending error");
+  }
+
+  delay(100);
+}
+void speed_inc() {
+  if (speed > 90) {
+    speed = 100;
+  } else {
+    speed += 10;
+  }
+  instance.f_b_speed = speed;
+}
+void speed_dec() {
+  if (speed < -90) {
+    speed = -100;
+  } else {
+    speed -= 10;
+  }
+  instance.f_b_speed = speed;
+}
+void turn_right() {
+  if (right_left_state == 1) {
+    right_left_state = 1;
+  } else {
+    right_left_state += 1;
+  }
+  instance.horizontal = right_left_state;
+}
+void turn_left() {
+  if (right_left_state == -1) {
+    right_left_state = -1;
+  } else {
+    right_left_state -= 1;
+  }
+  instance.horizontal = right_left_state;
+}
+void analog_digital() {
+  analog_digital_state += 1;
+  analog_digital_state %= 2;
+  instance.an_dig_state = analog_digital_state;
 }
 
-
-void state_inc() {
-  state += 1;
-  state %= 3;
-  instance.General_state = state;
-}
-void grab_drop_inc() {
-  grab_drop += 1;
-  grab_drop %= 2;
-  instance.Grab_Drop_state = grab_drop;
-}
 
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   Serial.print("\r\nLast Packet Send Status:\t");
