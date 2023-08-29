@@ -21,7 +21,7 @@ void OnDataRecv(const uint8_t* mac, const uint8_t* incomingData, int len);
 dataPack instance;
 
 //tcs3200 renk okuma
-tcs3200 tcs(D11, D12, D13, D14, D15);
+//tcs3200 tcs(D11, D12, D13, D14, D15);
 
 /*RGB values*/
 uint8_t Red = 0;
@@ -52,7 +52,7 @@ uint8_t m_2_2f = 12;
 uint8_t m_2_2b = 14;
 
 
-const uint16_t freq = 5000;
+const uint16_t freq = 1000;
 const uint8_t pwmChannel1 = 0;
 const uint8_t pwmChannel2 = 1;
 const uint8_t resolution = 10;
@@ -64,6 +64,7 @@ void m_r_b();
 void m_l_b();
 
 //Deneyap analog and digital pins
+/*
 uint8_t i[] = { A0, A1, A2, A3, A4, A5 };
 uint8_t j[] = { D0, D1, D2, D3, D4, D5, D6, D7, D8, D9, D10, D11, D12, D13, D14, D15 };
 
@@ -72,7 +73,7 @@ uint8_t j[] = { D0, D1, D2, D3, D4, D5, D6, D7, D8, D9, D10, D11, D12, D13, D14,
 Servo servo_D2;
 Servo servo_D3;  //Robot kol için
 Servo servo_D4;
-
+*/
 //prototypes
 void robot_arm_controller(int16_t angle_1, int16_t angle_2, bool grab_drop);
 void line_tracer_code();  // Kayra sen bunu halledersin ya da birlikte kafa yorabiliriz. Nope bu yok
@@ -160,7 +161,7 @@ void loop() {
   }
 }
 
-
+/*
 //Belki kullanılabilir.
 void robot_arm_controller(int16_t angle_1, int16_t angle_2, bool grab_drop) {
   angle_1 = map(angle_1, 0, 4095, 0, 180);
@@ -173,7 +174,7 @@ void robot_arm_controller(int16_t angle_1, int16_t angle_2, bool grab_drop) {
     servo_D4.write(0);
   }
 }
-
+*/
 void motor_speed(uint8_t channel, uint8_t speed) {
   ledcWrite(channel, speed);
 }
