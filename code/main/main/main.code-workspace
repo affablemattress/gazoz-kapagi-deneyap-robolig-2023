@@ -11,6 +11,10 @@
 		},
 		{
 			"path": "../../kayra/platformio-buzzer-esp32"
+		},
+		{
+			"name": "controller",
+			"path": "../controller"
 		}
 	],
 	"settings": {

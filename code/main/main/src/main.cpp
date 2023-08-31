@@ -2,19 +2,45 @@
 #include "WiFi.h"
 #include <Arduino.h>
 
-#define POLL_PERIOD 50
-
 #define DEBUG
-static const char* logTAG = "MainLog";
+/*
+#ifdef DEBUG
+Serial.println("");
+#endif
+*/
 
-SemaphoreHandle_t controllerDataMutex = NULL;
+namespace{
+  #define BUT1 D0
+  #define BUT2 D1
+
+  #define LEDG A4
+  #define LEDB A5
+
+  #define PWML D4
+  #define PWMR SCK
+
+  #define IN1 MISO
+  #define IN2 MOSI
+  #define IN3 D8
+  #define IN4 D9
+
+  #define BUZZ D15
+
+  #define SV_GRIP DAC1
+  #define SV_TRIG DAC2
+}
+
 struct controllerData {
-    uint16_t analogX;
-    uint16_t analogY;
-    int8_t speed;  //positive -> forward
-    int8_t rotational;  //positive -> right 
-    uint8_t modSelect;
+  volatile uint16_t analogX;
+  volatile uint16_t analogY;
+  volatile uint8_t switchX;
+  volatile uint8_t switchY;
+  volatile uint8_t leftButton;
+  volatile uint8_t centerButton;
+  volatile uint8_t rightButton;
 };
+SemaphoreHandle_t controllerDataMutex = NULL;
+controllerData myLilControllerData;
 
 void espNowReceiveCb(const uint8_t* mac, const uint8_t* incomingData, int len);
 
@@ -28,29 +54,47 @@ esp_now_peer_info_t controllerPeerInfo = {
     .priv = NULL
 };
 
-//    object for data receiving
-controllerData controller_data;
-
 void setup() {
-  #ifdef DEBUG
-    esp_log_level_set(logTAG, ESP_LOG_ERROR);
-  #endif
+  controllerDataMutex = xSemaphoreCreateMutex();
 
-  controllerDataMutex = xSemaphoreCreateMutex();x
+//<------------------------------------------------------------------------------>
+//<----------------------------------SETUP PINS---------------------------------->
+//<------------------------------------------------------------------------------>
+  pinMode(BUT1, INPUT_PULLUP);
+  pinMode(BUT2, INPUT_PULLUP);
+  pinMode(LEDG, OUTPUT);
+  pinMode(LEDB, OUTPUT);
+  pinMode(PWML, OUTPUT);
+  pinMode(PWMR, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+  pinMode(BUZZ, OUTPUT);
+  pinMode(SV_GRIP, OUTPUT);
+  pinMode(SV_TRIG, OUTPUT);
+
+//<------------------------------------------------------------------------------>
+//<-------------------------------SETUP ESP_NOW---------------------------------->
+//<------------------------------------------------------------------------------>
   WiFi.mode(WIFI_STA);
   while(esp_now_init() != 0) {
     #ifdef DEBUG
-    ESP_LOGE(logTAG, "ESP_NOW init failed!");
+    Serial.println("ESP_NOW setup failed. Retrying in 500ms...");
     #endif
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
   }
-  #ifdef DEBUG
-  ESP_LOGE(logTAG, "ESP_NOW init failed!");
-  #endif
-  
   esp_now_set_pmk(pmk);
   esp_now_add_peer(&controllerPeerInfo);
-  esp_now_recv_cb_t(espNowReceiveCb);
+  esp_now_register_recv_cb(espNowReceiveCb);
+  #ifdef DEBUG
+  Serial.println("ESP_NOW setup successful!");
+  #endif
+
+//<------------------------------------------------------------------------------>
+//<--------------------------------SETUP SERVOS---------------------------------->
+//<------------------------------------------------------------------------------>
+  
 }
 
 void loop() {
@@ -60,9 +104,9 @@ void loop() {
 void espNowReceiveCb(const uint8_t* mac, const uint8_t* incomingData, int len) {
   //maybe critical section?...
   if (!strncmp((char*)mac, (char*)controllerPeerInfo.peer_addr, 6)) {
-    xSemaphoreTakeFromISR(controllerDataMutex, POLL_PERIOD);
+    xSemaphoreTakeFromISR(controllerDataMutex, NULL);
     memcpy(&controller_data, incomingData, sizeof(controllerData));
-    xSemaphoreGiveFromISR(controllerDataMutex);
+    xSemaphoreGiveFromISR(controllerDataMutex, NULL);
   }
   else {
     #ifdef DEBUG
