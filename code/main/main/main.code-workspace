@@ -1,0 +1,22 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../../deniz"
+		},
+		{
+			"path": "../../kayra/platformio-servo-esp32"
+		},
+		{
+			"path": "../../kayra/platformio-buzzer-esp32"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"istream": "cpp",
+			"ostream": "cpp"
+		}
+	}
+}

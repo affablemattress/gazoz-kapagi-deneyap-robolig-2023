@@ -14,10 +14,9 @@ esp_now_peer_info_t peerInfo;
 typedef struct dataPack {
   uint16_t X_axis = 0;       // dummy number for test
   uint16_t Y_axis = 0;       //dummy number for test
-  uint8_t an_dig_state = 0;  // button 0 - joystick 1
   int8_t f_b_speed = 0;      //speed -100 100
   int8_t horizontal = 0;     //-1 right 0 forward 1 left
-
+  uint8_t an_dig_state = 0;  // button 0 - joystick 1
 } dataPack;
 
 dataPack instance;
