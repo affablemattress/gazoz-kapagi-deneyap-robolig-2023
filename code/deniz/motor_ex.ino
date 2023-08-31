@@ -4,7 +4,7 @@ int8_t motor_back = 22;
 
 uint8_t i = 0;
 
-const uint16_t freq = 30000;
+const uint16_t freq = 30000; // 500 de olabilir fark etmez
 const uint8_t pwmChannel1 = 0;
 const uint8_t resolution = 8;
 
