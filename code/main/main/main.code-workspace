@@ -4,23 +4,27 @@
 			"path": "."
 		},
 		{
+			"name": "controller",
+			"path": "../controller"
+		},
+		{
 			"path": "../../deniz"
 		},
 		{
-			"path": "../../kayra/platformio-servo-esp32"
-		},
-		{
 			"path": "../../kayra/platformio-buzzer-esp32"
-		},
-		{
-			"name": "controller",
-			"path": "../controller"
 		}
 	],
 	"settings": {
 		"files.associations": {
 			"istream": "cpp",
-			"ostream": "cpp"
+			"ostream": "cpp",
+			"optional": "cpp",
+			"system_error": "cpp",
+			"array": "cpp",
+			"functional": "cpp",
+			"tuple": "cpp",
+			"type_traits": "cpp",
+			"utility": "cpp"
 		}
 	}
 }

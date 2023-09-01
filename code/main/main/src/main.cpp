@@ -1,3 +1,7 @@
+#include "songs.h"
+#include "musicPlayer.h"
+#include "vars.h"
+#include "Deneyap_Servo.h"
 #include "esp_now.h"
 #include "WiFi.h"
 #include <Arduino.h>
@@ -9,28 +13,7 @@ Serial.println("");
 #endif
 */
 
-namespace{
-  #define BUT1 D0
-  #define BUT2 D1
-
-  #define LEDG A4
-  #define LEDB A5
-
-  #define PWML D4
-  #define PWMR SCK
-
-  #define IN1 MISO
-  #define IN2 MOSI
-  #define IN3 D8
-  #define IN4 D9
-
-  #define BUZZ D15
-
-  #define SV_GRIP DAC1
-  #define SV_TRIG DAC2
-}
-
-struct controllerData {
+struct ControllerData {
   volatile uint16_t analogX;
   volatile uint16_t analogY;
   volatile uint8_t switchX;
@@ -40,19 +23,64 @@ struct controllerData {
   volatile uint8_t rightButton;
 };
 SemaphoreHandle_t controllerDataMutex = NULL;
-controllerData myLilControllerData;
-
-void espNowReceiveCb(const uint8_t* mac, const uint8_t* incomingData, int len);
+ControllerData myLilControllerData = { 0 };
 
 const uint8_t pmk[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
 esp_now_peer_info_t controllerPeerInfo = {
-    .peer_addr = { 0x3C, 0xE9, 0x0E, 0x86, 0x0C, 0x84 },
-    .lmk = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
-    .channel = 0,
-    .ifidx = WIFI_IF_STA,
-    .encrypt = 1,
-    .priv = NULL
+  //TODO FIX IP
+  .peer_addr = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+  .lmk = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
+  .channel = 0,
+  .ifidx = WIFI_IF_STA,
+  .encrypt = 1,
+  .priv = NULL
 };
+
+class MotorPWM {
+  uint8_t _channel;
+  uint8_t _pinEn;
+  uint8_t _pin1;
+  uint8_t _pin2;
+  uint8_t _lastDirection = 0; //0 reverse, 1 forward
+public:
+  //TODO CHECK IF BIT IS GOOD IF 8 BIT REQUIRED DIVIDE DUTY BY 4
+  MotorPWM(uint8_t chan, uint8_t pinEn, uint8_t pin1, uint8_t pin2)
+    : _channel(chan), _pinEn(pinEn), _pin1(pin1), _pin2(pin2){
+    ledcSetup(chan, 5000, 13);
+    ledcAttachPin(pinEn, chan);
+    write(0);
+  }
+  //Duty MUST be between [-1000 - 1000]
+  inline void write(int16_t speed) {
+    static uint8_t direction = 0;
+    if(speed < 0) {
+      direction = 0;
+      speed *= -1;
+    }
+    else {
+      direction = 1;
+    }
+    if(speed > 1000) {
+      speed = 1000;
+    }
+    uint32_t dutyValue = (8191 / 1000) * speed;
+    ledcWrite(_channel, dutyValue);
+    if(direction != _lastDirection) {
+      _lastDirection = direction;
+      digitalWrite(_pin1, direction);
+      digitalWrite(_pin2, !direction);
+    }
+  }
+};
+
+MotorPWM leftMotor;
+MotorPWM rightMotor;
+Servo servoGrip;
+Servo servoTrig;
+volatile uint8_t isGripButtonPressed = 0;
+
+void espNowReceiveCb(const uint8_t* mac, const uint8_t* incomingData, int len);
+void gripPressedCb();
 
 void setup() {
   controllerDataMutex = xSemaphoreCreateMutex();
@@ -74,6 +102,8 @@ void setup() {
   pinMode(SV_GRIP, OUTPUT);
   pinMode(SV_TRIG, OUTPUT);
 
+  attachInterrupt(digitalPinToInterrupt(BUT1), gripPressedCb, FALLING);
+
 //<------------------------------------------------------------------------------>
 //<-------------------------------SETUP ESP_NOW---------------------------------->
 //<------------------------------------------------------------------------------>
@@ -94,18 +124,77 @@ void setup() {
 //<------------------------------------------------------------------------------>
 //<--------------------------------SETUP SERVOS---------------------------------->
 //<------------------------------------------------------------------------------>
-  
+  #ifdef DEBUG
+  Serial.println("Starting up servos...");
+  #endif
+  servoGrip.attach(SV_GRIP, 0);
+  servoTrig.attach(SV_TRIG, 1);
+  servoGrip.write(GRIP_RELAX_ANGLE);
+  servoTrig.write(TRIG_DEF_ANGLE);
+
+  leftMotor = MotorPWM(2, PWML, IN1, IN2);
+  rightMotor = MotorPWM(3, PWMR, IN3, IN4);
+
+  leftMotor.write(1000);
+  rightMotor.write(-1000);
+  vTaskDelay(500 / portTICK_PERIOD_MS);
+  leftMotor.write(-1000);
+  rightMotor.write(1000);
+  vTaskDelay(500 / portTICK_PERIOD_MS);
+  leftMotor.write(0);
+  rightMotor.write(0);
+
+//<------------------------------------------------------------------------------>
+//<------------------------------WAIT FOR GRIP----------------------------------->
+//<------------------------------------------------------------------------------>
+  #ifdef DEBUG
+  Serial.println("Waiting for grip button press...");
+  #endif
+  while(!isGripButtonPressed) {}
+  servoGrip.write(GRIP_HOLD_ANGLE);
+  digitalWrite(LEDB, HIGH);
+
+  #ifdef DEBUG
+  Serial.println("GRIP ENGAGED. LETS GO!");
+  #endif
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
+  xTaskCreatePinnedToCore((TaskFunction_t)playerTask, "Player", 1024, (void*)&master, 0, &playerTaskHandle, APP_CPU_NUM);
 }
 
 void loop() {
-  
+  static ControllerData mySatanicControllerData = { 0 };
+  xSemaphoreTake(controllerDataMutex, 10);
+  memcpy(&mySatanicControllerData, &myLilControllerData, sizeof(ControllerData));
+  xSemaphoreGive(controllerDataMutex);
+
+  //TODO FIGURE THIS OUT
+  leftMotor.write(mySatanicControllerData.analogY + mySatanicControllerData.analogX);
+  rightMotor.write(mySatanicControllerData.analogY - mySatanicControllerData.analogX);
+
+  if(mySatanicControllerData.leftButton) {
+    servoGrip.write(GRIP_RELAX_ANGLE);
+  }
+  if(mySatanicControllerData.rightButton) {
+    servoTrig.write(TRIG_PRESSED_ANGLE);
+  }
+}
+
+void gripPressedCb() {
+  volatile static uint32_t isr_db_counter = 0;
+  if (millis() - isr_db_counter > DEBOUNCE_CONSTANT) {
+    isGripButtonPressed = 1;
+    isr_db_counter = millis();
+  }
 }
 
 void espNowReceiveCb(const uint8_t* mac, const uint8_t* incomingData, int len) {
-  //maybe critical section?...
+  //TODO maybe critical setion..?
+  static uint8_t ledCurrent = 0;
   if (!strncmp((char*)mac, (char*)controllerPeerInfo.peer_addr, 6)) {
+    ledCurrent ^= 1;
+    digitalWrite(LEDG, ledCurrent);
     xSemaphoreTakeFromISR(controllerDataMutex, NULL);
-    memcpy(&controller_data, incomingData, sizeof(controllerData));
+    memcpy(&myLilControllerData, incomingData, sizeof(ControllerData));
     xSemaphoreGiveFromISR(controllerDataMutex, NULL);
   }
   else {
