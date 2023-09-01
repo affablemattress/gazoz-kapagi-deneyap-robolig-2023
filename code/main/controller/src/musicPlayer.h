@@ -32,9 +32,9 @@ void playerTask(void* songData) {
   while(1) {
     for(size_t i = 0; i < song->noteCount; i++) {
       ledcWriteTone(SONG_CHANNEL, song->scaleArray[song->notesArray[i]]);
-      vTaskDelay(song->noteLengthsArray[i] - strumBreakLength);
+      vTaskDelay((song->noteLengthsArray[i] - strumBreakLength) / portTICK_PERIOD_MS);
       ledcWriteTone(SONG_CHANNEL, 1);
-      vTaskDelay(strumBreakLength);
+      vTaskDelay(strumBreakLength / portTICK_PERIOD_MS);
     }
   }
 }

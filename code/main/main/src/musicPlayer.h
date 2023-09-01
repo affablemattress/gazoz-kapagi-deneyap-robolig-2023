@@ -27,7 +27,7 @@ void playerTask(void* songData) {
   static const TickType_t strumBreakLength = 35;
   SongData* song = (SongData*) songData;
 
-  ledcSetup(SONG_CHANNEL, 50, 13);
+  ledcSetup(SONG_CHANNEL, 50, 10);
   ledcAttachPin(BUZZ, SONG_CHANNEL);
 
   while(1) {

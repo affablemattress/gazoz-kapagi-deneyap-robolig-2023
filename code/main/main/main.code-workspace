@@ -12,6 +12,10 @@
 		},
 		{
 			"path": "../../kayra/platformio-buzzer-esp32"
+		},
+		{
+			"name": "lab-deneme",
+			"path": "../lab-deneme"
 		}
 	],
 	"settings": {

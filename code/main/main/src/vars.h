@@ -4,13 +4,11 @@
 //<------------------------------------------------------------------------------>
 //<-------------------------------------VARS------------------------------------->
 //<------------------------------------------------------------------------------>
-#define DEBOUNCE_CONSTANT 150
+#define DEBOUNCE_CONSTANT 200
 
-//TODO find angles
-#define GRIP_RELAX_ANGLE 0
-#define GRIP_HOLD_ANGLE 180
-#define TRIG_DEF_ANGLE 0
-#define TRIG_PRESSED_ANGLE 180
+#define DEBOUNCE_CONSTANT 200
+
+#define HIT_SERVO_LOW 60
 
 #define SONG_CHANNEL 4
 
@@ -20,8 +18,8 @@
 #define BUT1 D0
 #define BUT2 D1
 
-#define MY_LEDG A4
-#define MY_LEDB A5
+#define MY_LEDR A4
+#define MY_LEDG A5
 
 #define PWML D4
 #define PWMR SCK
@@ -33,5 +31,5 @@
 
 #define BUZZ D15
 
-#define SV_GRIP DAC1
-#define SV_TRIG DAC2
+#define SV_BASE DAC1
+#define SV_HIT DAC2

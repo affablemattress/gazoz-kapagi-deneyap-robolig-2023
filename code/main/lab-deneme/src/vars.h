@@ -1,33 +1,25 @@
 #pragma once
-#include <Arduino.h>
+
 
 //<------------------------------------------------------------------------------>
 //<-------------------------------------VARS------------------------------------->
 //<------------------------------------------------------------------------------>
-#define DEBOUNCE_CONSTANT 200
-
-#define MOTOR_LOW_SPEED 400
-#define MOTOR_HIGH_THRESHOLD 6800
-
-#define HIT_SERVO_LOW 60
-
-#define SONG_CHANNEL 0
+//TODO find angles
+#define GRIP_RELAX_ANGLE 90
+#define GRIP_HOLD_ANGLE 180
+#define TRIG_DEF_ANGLE 90
+#define TRIG_PRESSED_ANGLE 180
 
 //<------------------------------------------------------------------------------>
 //<--------------------------------------PINS------------------------------------>
 //<------------------------------------------------------------------------------>
-#define LB D6
-#define CB D7
-#define RB D8
+#define PWML D4
+#define PWMR SCK
 
-#define BUZZ D9
+#define IN1 MISO
+#define IN2 MOSI
+#define IN3 D8
+#define IN4 D9
 
-#define MY_LEDG A4
-#define MY_LEDB A5
-
-#define JOYX A0
-#define JOYY A1
-
-//#define SW_X MISO
-//#define SW_Y MOSI
-
+#define SV_GRIP DAC1
+#define SV_TRIG DAC2
