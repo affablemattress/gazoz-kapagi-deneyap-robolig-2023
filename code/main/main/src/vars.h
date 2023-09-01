@@ -20,8 +20,8 @@
 #define BUT1 D0
 #define BUT2 D1
 
-#define LEDG A4
-#define LEDB A5
+#define MY_LEDG A4
+#define MY_LEDB A5
 
 #define PWML D4
 #define PWMR SCK

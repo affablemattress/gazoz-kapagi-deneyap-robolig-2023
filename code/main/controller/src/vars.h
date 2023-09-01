@@ -19,8 +19,8 @@
 
 #define BUZZ D9
 
-#define LEDB A4
-#define LEDG A5
+#define MY_LEDB A4
+#define MY_LEDG A5
 
 #define JOYX A0
 #define JOYY A1

@@ -14,23 +14,27 @@ Serial.println("");
 */
 
 struct ControllerData {
-  volatile uint16_t analogX;
-  volatile uint16_t analogY;
-  volatile uint8_t switchX;
-  volatile uint8_t switchY;
+  volatile int16_t analogX;
+  volatile int16_t analogY;
+  //volatile uint8_t switchX;
+  //volatile uint8_t switchY;
   volatile uint8_t leftButton;
-  volatile uint8_t centerButton;
   volatile uint8_t rightButton;
 };
 SemaphoreHandle_t controllerDataMutex = NULL;
-ControllerData myLilControllerData = { 0 };
+ControllerData myLilControllerData = { 
+  .analogX = 0,
+  .analogY = 0,
+  .leftButton = 1, 
+  .rightButton = 0
+ };
 
 const uint8_t pmk[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
 esp_now_peer_info_t controllerPeerInfo = {
   //TODO FIX IP
   .peer_addr = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
   .lmk = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
-  .channel = 0,
+  .channel = 3,
   .ifidx = WIFI_IF_STA,
   .encrypt = 1,
   .priv = NULL
@@ -43,6 +47,9 @@ class MotorPWM {
   uint8_t _pin2;
   uint8_t _lastDirection = 0; //0 reverse, 1 forward
 public:
+  MotorPWM() {
+    
+  }
   //TODO CHECK IF BIT IS GOOD IF 8 BIT REQUIRED DIVIDE DUTY BY 4
   MotorPWM(uint8_t chan, uint8_t pinEn, uint8_t pin1, uint8_t pin2)
     : _channel(chan), _pinEn(pinEn), _pin1(pin1), _pin2(pin2){
@@ -77,10 +84,9 @@ MotorPWM leftMotor;
 MotorPWM rightMotor;
 Servo servoGrip;
 Servo servoTrig;
-volatile uint8_t isGripButtonPressed = 0;
 
 void espNowReceiveCb(const uint8_t* mac, const uint8_t* incomingData, int len);
-void gripPressedCb();
+//void gripPressedCb();
 
 void setup() {
   controllerDataMutex = xSemaphoreCreateMutex();
@@ -90,8 +96,8 @@ void setup() {
 //<------------------------------------------------------------------------------>
   pinMode(BUT1, INPUT_PULLUP);
   pinMode(BUT2, INPUT_PULLUP);
-  pinMode(LEDG, OUTPUT);
-  pinMode(LEDB, OUTPUT);
+  pinMode(MY_LEDG, OUTPUT);
+  pinMode(MY_LEDB, OUTPUT);
   pinMode(PWML, OUTPUT);
   pinMode(PWMR, OUTPUT);
   pinMode(IN1, OUTPUT);
@@ -102,7 +108,7 @@ void setup() {
   pinMode(SV_GRIP, OUTPUT);
   pinMode(SV_TRIG, OUTPUT);
 
-  attachInterrupt(digitalPinToInterrupt(BUT1), gripPressedCb, FALLING);
+  //attachInterrupt(digitalPinToInterrupt(BUT1), gripButtonInterrupt, FALLING);
 
 //<------------------------------------------------------------------------------>
 //<-------------------------------SETUP ESP_NOW---------------------------------->
@@ -134,7 +140,6 @@ void setup() {
 
   leftMotor = MotorPWM(2, PWML, IN1, IN2);
   rightMotor = MotorPWM(3, PWMR, IN3, IN4);
-
   leftMotor.write(1000);
   rightMotor.write(-1000);
   vTaskDelay(500 / portTICK_PERIOD_MS);
@@ -150,12 +155,12 @@ void setup() {
   #ifdef DEBUG
   Serial.println("Waiting for grip button press...");
   #endif
-  while(!isGripButtonPressed) {}
+  while(!myLilControllerData.leftButton) {}
   servoGrip.write(GRIP_HOLD_ANGLE);
-  digitalWrite(LEDB, HIGH);
+  digitalWrite(MY_LEDB, 1);
 
   #ifdef DEBUG
-  Serial.println("GRIP ENGAGED. LETS GO!");
+  Serial.println("Grip engaged, ready to move!");
   #endif
   vTaskDelay(1000 / portTICK_PERIOD_MS);
   xTaskCreatePinnedToCore((TaskFunction_t)playerTask, "Player", 1024, (void*)&master, 0, &playerTaskHandle, APP_CPU_NUM);
@@ -167,23 +172,28 @@ void loop() {
   memcpy(&mySatanicControllerData, &myLilControllerData, sizeof(ControllerData));
   xSemaphoreGive(controllerDataMutex);
 
+  #ifdef DEBUG
+  static char printBuffer[100];
+  sprintf(printBuffer, "Analog X: %d - Analog Y: %d - Left Button: %u - Right Button: %u\n", mySatanicControllerData.analogX, mySatanicControllerData.analogY, mySatanicControllerData.leftButton, mySatanicControllerData.rightButton);
+  Serial.print(printBuffer);
+  #endif
   //TODO FIGURE THIS OUT
   leftMotor.write(mySatanicControllerData.analogY + mySatanicControllerData.analogX);
   rightMotor.write(mySatanicControllerData.analogY - mySatanicControllerData.analogX);
 
   if(mySatanicControllerData.leftButton) {
     servoGrip.write(GRIP_RELAX_ANGLE);
+    digitalWrite(MY_LEDB, 1);
+  } 
+  else {
+    servoGrip.write(GRIP_HOLD_ANGLE);
   }
+
   if(mySatanicControllerData.rightButton) {
     servoTrig.write(TRIG_PRESSED_ANGLE);
-  }
-}
-
-void gripPressedCb() {
-  volatile static uint32_t isr_db_counter = 0;
-  if (millis() - isr_db_counter > DEBOUNCE_CONSTANT) {
-    isGripButtonPressed = 1;
-    isr_db_counter = millis();
+  } 
+  else {
+    servoTrig.write(TRIG_DEF_ANGLE);
   }
 }
 
@@ -192,7 +202,7 @@ void espNowReceiveCb(const uint8_t* mac, const uint8_t* incomingData, int len) {
   static uint8_t ledCurrent = 0;
   if (!strncmp((char*)mac, (char*)controllerPeerInfo.peer_addr, 6)) {
     ledCurrent ^= 1;
-    digitalWrite(LEDG, ledCurrent);
+    digitalWrite(MY_LEDG, ledCurrent);
     xSemaphoreTakeFromISR(controllerDataMutex, NULL);
     memcpy(&myLilControllerData, incomingData, sizeof(ControllerData));
     xSemaphoreGiveFromISR(controllerDataMutex, NULL);
@@ -203,3 +213,11 @@ void espNowReceiveCb(const uint8_t* mac, const uint8_t* incomingData, int len) {
     #endif 
   }
 }
+
+/*void gripButtonInterrupt() {
+  volatile static uint32_t isr_db_counter = 0;
+  if (millis() - isr_db_counter > DEBOUNCE_CONSTANT) {
+
+    isr_db_counter = millis();
+  }
+}*/

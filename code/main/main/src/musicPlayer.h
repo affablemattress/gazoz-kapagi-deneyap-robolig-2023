@@ -1,3 +1,4 @@
+#pragma once
 #include "vars.h"
 #include <Arduino.h>
 
